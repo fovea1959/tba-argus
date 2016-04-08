@@ -15,4 +15,4 @@ print Dumper(\%opt);
 
 my $eventkey = $ARGV[0];
 
-TBA::getAndSave('api/v2/event/' . $eventkey . '/matches', 'event_' . $eventkey . '_matches', \%opt);
+TBA::getAndSave('api/v2/event/' . $eventkey . '/matches', TBA::make_filename_for_event_matches($eventkey), \%opt);

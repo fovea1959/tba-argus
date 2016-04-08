@@ -48,7 +48,7 @@ sub file_date {
  return 0 if -z $fname;
 
  try {
-  my $x = fetch($name);
+  my $x = loadFromLocal($name);
  } catch {
   return 0;
  }
@@ -56,18 +56,25 @@ sub file_date {
  return (stat($fname))[9];
 }
 
-sub fetch {
+sub loadFromLocal {
  my ($name) = @_;
  my $j = "";
  my $fname = json_filename($name);
  {
   local $/=undef;
-  open (my $fh, '<', $fname) or die $!;
+  open (my $fh, '<', $fname) or die "trouble opening $fname: $!";
   $j = <$fh>;
   close $fh;
  }
  my $perl_scalar = from_json( $j, { utf8  => 1 } );
  return $perl_scalar;
+}
+
+sub make_filename_for_event_matches {
+ my ($eventkey) = @_;
+ my $rv = 'event_' . $eventkey . '_matches';
+ print STDERR "$eventkey -> $rv\n";
+ return $rv;
 }
 
 sub json_filename {
@@ -93,12 +100,13 @@ sub getAndSave {
   my $j = get($url, { ims => $mdate } );
   my $perl_scalar = from_json( $j, { utf8  => 1 } );
   my $j2 = to_json( $perl_scalar, { ascii => 1, pretty => 1 } );
+  my $fn = json_filename($name);
 
-  open (my $fh, '>', json_filename($name)) or die $!;
+  open (my $fh, '>', $fn) or die "trouble opening $fn: $!";
   print $fh $j2;
   close $fh;
  } catch {
-  warn "fetch failed: $_";
+  warn "getAndSave failed: $_";
  }
 }
 

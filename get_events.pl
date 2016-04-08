@@ -12,7 +12,7 @@ use JSON -support_by_pp;
 my %opt = ();
 GetOptions (\%opt, "new");
 
-my $event_list = TBA::fetch('eventlist');
+my $event_list = TBA::loadFromLocal('eventlist');
 #print Dumper($event_list);
 
 my $opts = "";
