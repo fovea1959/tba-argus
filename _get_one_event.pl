@@ -11,8 +11,10 @@ use JSON -support_by_pp;
 
 my %opt = ();
 GetOptions (\%opt, "new");
-print Dumper(\%opt);
+#print Dumper(\%opt);
 
 my $eventkey = $ARGV[0];
 
 TBA::getAndSave('api/v2/event/' . $eventkey . '/matches', TBA::make_filename_for_event_matches($eventkey), \%opt);
+TBA::getAndSave('api/v2/event/' . $eventkey . '/stats', TBA::make_filename_for_event_stats($eventkey), \%opt);
+TBA::getAndSave('api/v2/event/' . $eventkey . '/rankings', TBA::make_filename_for_event_rankings($eventkey), \%opt);

@@ -36,24 +36,91 @@ my $csv = Text::CSV->new() || die Text::CSV->error_diag();
 foreach my $e (@$event_list) {
  #print Dumper($e);
  my $k = $e->{key};
- next unless $k eq "2016micmp";
+ #next unless $k eq "2016micmp";
  my $tzname = $e->{timezone};
- my $fn = TBA::make_filename_for_event_matches($k);
- print STDERR "fetching $k $fn $tzname\n";
- my $event = TBA::loadFromLocal($fn);
+ my ($event, $stats, $rankings);
+ {
+  my $fn = TBA::make_filename_for_event_matches($k);
+  print STDERR "fetching $k $fn $tzname\n";
+  $event = TBA::loadFromLocal($fn);
+  $fn = TBA::make_filename_for_event_stats($k);
+  $stats = TBA::loadFromLocal($fn);
+  $fn = TBA::make_filename_for_event_rankings($k);
+  $rankings = TBA::loadFromLocal($fn);
+  #last;
+ }
  dumpEvent($event, $tzname );
- #last;
+ dumpStats($e, $event, $stats, $rankings, $tzname);
+}
+
+sub dumpStats {
+ my ($e, $event, $stats, $rankings, $tzname) = @_;
+ my $t = { };
+ #print STDERR Dumper($event);
+ foreach my $n (keys %{$stats->{oprs}}) {
+  $t->{$n} = { 
+   'opr' => $stats->{oprs}->{$n},
+   'ccwm' => $stats->{ccwms}->{$n},
+   'dpr' => $stats->{dprs}->{$n},
+  }
+ }
+ #print STDERR Dumper($t);
+
+ # wow, this is weird
+ my $header = undef;
+ foreach my $rrow (@$rankings) {
+  if (! defined $header) {
+   $header = $rrow;
+  } else {
+   my %rhash = ( );
+   foreach my $i (0..scalar(@$header)-1) {
+    $rhash{$header->[$i]} = $rrow->[$i];
+   }
+   my $n = $rhash{Team};
+   while (my ($k, $v) = each %rhash) {
+    $t->{$n}->{$k} = $v;
+   }
+   #print STDERR Dumper($rhash);
+  }
+ }
+
+ foreach my $t1 (keys %$t) {
+  my $d = $t->{$t1};
+  my $c = $d->{Played};
+  print "time=\"", $e->{end_date}, "\" dt=teamevent";
+  print splunk("batch", $opts{batch}) if defined $opts{batch};
+  print splunk("event_key", $e->{key});
+  print splunk("team", $t1);
+  print splunk("rank", $d->{Rank});
+  print splunk("rp", $d->{'Ranking Score'});
+  print splunk("auto", a($d->{'Auto'}, $c));
+  print splunk("scaleChallenge", a($d->{'Scale/Challenge'}, $c));
+  print splunk("goals", a($d->{'Goals'}, $c));
+  print splunk("defense", a($d->{'Defense'}, $c));
+  print splunk("played", $d->{'Played'});
+  print splunkFromHash("opr", $d);
+  print splunkFromHash("dpr", $d);
+  print splunkFromHash("ccwm", $d);
+  print "\n";
+  #print STDERR Dumper($t);
+ }
+}
+
+sub a {
+ my ($v, $c) = @_;
+ return 0 if $c == 0;
+ return sprintf("%.3f", $v/$c);
 }
 
 sub dumpEvent {
  my ($event, $tzname) = @_;
  foreach my $match (@$event) {
-  #print Dumper($match);
+  #print STDERR Dumper($match);
 
   my $time = $match->{time};
   my $datetime = DateTime->from_epoch ( epoch => $time, time_zone => $tzname);
   my $ts = $datetime->strftime("%F %T %z");
-  #print "$time -> $datetime -> $ts\n";
+  #print STDERR "$time -> $datetime -> $ts\n";
 
   my $colors = [ keys %{$match->{alliances}} ];
   my $win = {};
@@ -99,18 +166,20 @@ sub dumpEvent {
    # fix this line
    my $os = $match->{score_breakdown}->{$color};
    foreach my $team (@{$match->{alliances}->{$color}->{teams}}) {
-    print "time=\"", $ts, "\"";
+    my $team_number = $team;
+    $team_number =~ s/^frc//;
+    print "time=\"", $ts, "\" dt=match";
     print splunk("batch", $opts{batch}) if defined $opts{batch};
-    print splunk1("event_key", $match);
+    print splunkFromHash("event_key", $match);
     print splunk("match_key", $match->{key});
-    print splunk("team", $team);
+    print splunk("team", $team_number);
     print splunk("alliance", $color);
-    print splunknz("win", $win->{$color});
-    print splunknz("loss", $loss->{$color});
-    print splunknz("tie", $tie);
+    print splunkNZ("win", $win->{$color});
+    print splunkNZ("loss", $loss->{$color});
+    print splunkNZ("tie", $tie);
     print splunk("score", $scores->{$color});
     print splunk("opp_score", $scores->{other_color($color)});
-    print splunk1("comp_level", $match);
+    print splunkFromHash("comp_level", $match);
     print splunk("rp", $rps->{$color});
     print splunk("opp_rp", $rps->{other_color($color)});
     scoreStuff($s, "");
@@ -131,37 +200,37 @@ sub other_color {
 
 sub scoreStuff {
  my ($s, $p) = @_;
- print splunk1('autoPoints', $s, $p);
- print splunk1('autoReachPoints', $s, $p);
- print splunk1('autoCrossingPoints', $s, $p);
- print splunk1('autoBoulderPoints', $s, $p);
- print splunk1('autoBouldersLow', $s, $p);
- print splunk1('autoBouldersHigh', $s, $p);
- print splunk1('teleopPoints', $s, $p);
- print splunk1('teleopCrossingPoints', $s, $p);
- print splunk1('teleopBoulderPoints', $s, $p);
- print splunk1('teleopBouldersLow', $s, $p);
- print splunk1('teleopBouldersHigh', $s, $p);
- print splunk1('teleopChallengePoints', $s, $p);
- print splunk1('teleopScalePoints', $s, $p);
- print splunk1nz('breachPoints', $s, $p);
- print splunk1nz('capturePoints', $s, $p);
- print splunk1('towerEndStrength', $s, $p);
+ print splunkFromHash('autoPoints', $s, $p);
+ print splunkFromHash('autoReachPoints', $s, $p);
+ print splunkFromHash('autoCrossingPoints', $s, $p);
+ print splunkFromHash('autoBoulderPoints', $s, $p);
+ print splunkFromHash('autoBouldersLow', $s, $p);
+ print splunkFromHash('autoBouldersHigh', $s, $p);
+ print splunkFromHash('teleopPoints', $s, $p);
+ print splunkFromHash('teleopCrossingPoints', $s, $p);
+ print splunkFromHash('teleopBoulderPoints', $s, $p);
+ print splunkFromHash('teleopBouldersLow', $s, $p);
+ print splunkFromHash('teleopBouldersHigh', $s, $p);
+ print splunkFromHash('teleopChallengePoints', $s, $p);
+ print splunkFromHash('teleopScalePoints', $s, $p);
+ print splunkFromHashNZ('breachPoints', $s, $p);
+ print splunkFromHashNZ('capturePoints', $s, $p);
+ print splunkFromHash('towerEndStrength', $s, $p);
 }
 
-sub splunk1nz {
+sub splunkFromHashNZ {
  my ($n, $s, $p) = @_;
  return "" unless $s->{$n};
  return splunk ($p . $n, $s->{$n});
 }
 
-sub splunk1 {
+sub splunkFromHash {
  my ($n, $s, $p) = @_;
  $p = "" if ! defined $p;
  return splunk ($p . $n, $s->{$n});
 }
 
-sub splunknz {
+sub splunkNZ {
  my ($fn, $v) = @_;
  return "" unless $v;
  $csv->combine($v);

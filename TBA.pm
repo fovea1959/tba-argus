@@ -73,7 +73,21 @@ sub loadFromLocal {
 sub make_filename_for_event_matches {
  my ($eventkey) = @_;
  my $rv = 'event_' . $eventkey . '_matches';
- print STDERR "$eventkey -> $rv\n";
+ #print STDERR "$eventkey -> $rv\n";
+ return $rv;
+}
+
+sub make_filename_for_event_stats {
+ my ($eventkey) = @_;
+ my $rv = 'event_' . $eventkey . '_stats';
+ #print STDERR "$eventkey -> $rv\n";
+ return $rv;
+}
+
+sub make_filename_for_event_rankings {
+ my ($eventkey) = @_;
+ my $rv = 'event_' . $eventkey . '_rankings';
+ #print STDERR "$eventkey -> $rv\n";
  return $rv;
 }
 
